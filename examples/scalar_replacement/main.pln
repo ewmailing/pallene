@@ -1,0 +1,31 @@
+--[[--]]
+export function f()
+    local x : {integer} = {3}
+    local y = x[1] + 5
+    io.write(tostring(y))
+end
+
+export function f2()
+    local x : {integer} = {3}
+    local i = 1
+    local y = x[i] + 5
+    io.write(tostring(y))
+end
+--[[
+export function f3()
+    local x : {{integer}} = {{3}}
+    local i = 1
+    local y = x[i][1] + 5
+    io.write(tostring(y))
+end
+export function f4()
+    local x : {integer} = {3,4}
+    local y = 0
+    if 5 > 3 then
+        y = x[1] + 5
+    else
+        y = x[2] + 5
+    end
+    io.write(tostring(y))
+end
+--]]
