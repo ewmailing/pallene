@@ -1,9 +1,10 @@
---[[--]]
-export function f()
-    local x : {integer} = {3}
-    local y = x[1] + 5
-    io.write(tostring(y))
+--[[
+export function f() : integer
+    local x : {integer} = {3,4}
+    local y = x[1] + x[2]
+    return y
 end
+
 
 export function f2()
     local x : {integer} = {3}
@@ -11,13 +12,16 @@ export function f2()
     local y = x[i] + 5
     io.write(tostring(y))
 end
---[[
+
+-- should fail
 export function f3()
     local x : {{integer}} = {{3}}
     local i = 1
     local y = x[i][1] + 5
     io.write(tostring(y))
 end
+
+
 export function f4()
     local x : {integer} = {3,4}
     local y = 0
@@ -29,3 +33,25 @@ export function f4()
     io.write(tostring(y))
 end
 --]]
+--[[
+-- should fail
+export function f5(x : {integer}) : integer
+    local y = 0
+    for i=1,10 do
+        y = y + x[i]
+    end
+    return y
+end
+
+--]]
+-- should fail (value escaped)
+local function g(x : {integer})
+    x = {}
+end
+export function f6() : integer
+    local x : {integer} = {3,4}
+    g(x)
+    local y = x[1] + x[2]
+    return y
+end
+

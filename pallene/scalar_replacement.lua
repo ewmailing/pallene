@@ -5,8 +5,10 @@
 
 local ir = require "pallene.ir"
 local typedecl = require "pallene.typedecl"
-
+local inspect = require"inspect"
 local scalar_replacement = {}
+
+
 
 local function is_constant_value(v)
     local tag = v._tag
@@ -23,7 +25,6 @@ local function is_constant_value(v)
 end
 
 -- Replaces constant table values for constants
-
 local function AVal(cmd,state)
 
 end
@@ -32,19 +33,33 @@ local function AEval(root_cmd)
     local states = {}
     local f = function(cmd)
         local tag = cmd._tag
-        if     tag == "ir.Cmd.SetArr" then
+        if     tag == "ir.Cmd.Move" then
+            --print(inspect(cmd))
+            if not state[cmd.dst] then
+                if is_constant_value(cmd.src) then
+                    state[cmd.dst] = cmd.src
+                else
+                    assert(false,'assigning non constant, should be treated')
+                end
+            end
+        elseif     tag == "ir.Cmd.SetArr" then
             if not state[cmd.src_arr.id] then
-                state[cmd.src_arr.id] = {
-                    ["ir.Value.LocalVar"] = {},
-                    ["ir.Value.Integer"]  = {}
-                }
+                state[cmd.src_arr.id] = {}
             end
             if     cmd.src_i._tag == "ir.Value.Integer" then
-                state[cmd.src_arr.id][cmd.src_i._tag][cmd.src_i.value] = cmd.src_v.value
+                state[cmd.src_arr.id][cmd.src_i.value] = {value = cmd.src_v.value, _tag = cmd.src_i._tag}
             elseif cmd.src_i._tag == "ir.Value.LocalVar" then
-                state[cmd.src_arr.id][cmd.src_i._tag][cmd.src_i.id] = cmd.src_v.value
+                state[cmd.src_arr.id][cmd.src_i.id] = {cmd.src_v.value, _tag = cmd.src_i._tag}
             end
-
+        elseif     tag == "ir.Cmd.CallStatic" then
+            -- TODO also CallDyn
+            if not state.escaped then
+                state.escaped = {}
+            end
+            for k,v in ipairs(cmd.srcs) do
+                state.escaped[#state.escaped+1] = v
+            end
+            --print(inspect(cmd))
         else
                 print(tag)
         end
@@ -83,6 +98,7 @@ end
 function clean_new_table(cmd)
     -- make a map of array id and number of accesses
     -- if accesses is 0, can remove newarr
+    --TODO find a way to clean CheckGC()
     local uses = {}
     ir.map_cmd(cmd,function(_cmd)
         if _cmd._tag == "ir.Cmd.GetArr" then
@@ -105,8 +121,31 @@ function clean_new_table(cmd)
         end
     end)
 end
-function scalar_replacement.run(module)
 
+local function contains_id(arr,item)
+    for k,v in ipairs(arr) do
+        if v.id == item then return true end
+    end
+    return false
+end
+
+
+-- the main idea is to replace getarr for temporary variables.
+-- a possible repercussion of this is to be able to remove the array altogether
+-- a getarr can be turned into a temporary variable if the array doesn't escape
+-- to apply the transformation, one can create a new variable, setting it to the
+-- last known value
+
+-- we will be doing an abstract interpretation with the domain being
+-- A = {Luavalue,localvar,_,?}, _ being bot = undefined and ? being top = non-constant.
+-- the program state at each node will be a map of
+-- varindex -> {A} | A for every var in context
+-- it is important to note that the order in {A} is important
+-- the state will also have an 'escaped' field with the variables that escaped
+
+
+function scalar_replacement.run(module)
+    print(require('pallene.print_ir')(module))
     for _, func in ipairs(module.functions) do
         local cmd = func.body
         local states = AEval(cmd)
@@ -114,21 +153,31 @@ function scalar_replacement.run(module)
         ir.map_cmd(cmd,function(_cmd)
             count = count + 1
             if _cmd._tag == "ir.Cmd.GetArr" then
-                print(count,_cmd.src_arr.id,_cmd.src_i.value)
-                print(states[count])
-                print(states[count][_cmd.src_arr.id])
-                print(states[count][_cmd.src_arr.id][_cmd.src_i.value])
-                local value = states[count][_cmd.src_arr.id][_cmd.src_i.value]
+                --print(inspect(_cmd))
+                local i = nil
+                if _cmd.src_i._tag == 'ir.Value.LocalVar' then
+                    i = states[count][_cmd.src_i.id].value
+                    --get_val(_cmd.src_i.id)
+                elseif _cmd.src_i._tag == 'ir.Value.Integer' then
+                    i = _cmd.src_i.value
+                end
+                print(count,_cmd.src_arr.id,i)
+                print(inspect( states[count]))
+                print(inspect( states[count][_cmd.src_arr.id]))
+                print(inspect( states[count][_cmd.src_arr.id][i]))
+                local value = states[count][_cmd.src_arr.id][i]
                 if  value then
-                    return ir.Cmd.Move(_cmd.loc,_cmd.dst,{
-                        _tag = "ir.Value.Integer",
-                        value = value
-                      })
+                    if not contains_id(states[count].escaped,_cmd.src_arr.id) then
+                        return ir.Cmd.Move(_cmd.loc,_cmd.dst,value)
+                    end
                 end
             end
         end)
         clean_new_table(cmd)
+        -- clean gc
+        -- clean unused local vars
     end
+    print(require('pallene.print_ir')(module))
     return module, {}
 end
 
