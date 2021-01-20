@@ -1,0 +1,29 @@
+typealias node = {l : any, r: any}
+export function BottomUpTree(depth: integer): node
+    if depth > 0 then
+        depth = depth - 1
+        local left  = BottomUpTree(depth)
+        local right = BottomUpTree(depth)
+        return {l = left, r = right }
+    else
+        return { l = false, r = false }
+    end
+end
+
+export function ItemCheck(tree: node): integer
+    if tree.l then
+        return 1 + ItemCheck(tree.l) + ItemCheck(tree.r)
+    else
+        return 1
+    end
+end
+
+export function Stress(mindepth: integer, maxdepth: integer, depth: integer): {integer}
+    local iterations = 1 << (maxdepth - depth + mindepth)
+    local check = 0
+    for _ = 1, iterations do
+        local t = BottomUpTree(depth)
+        check = check + ItemCheck(t)
+    end
+    return { iterations, check }
+end

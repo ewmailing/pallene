@@ -1,0 +1,26 @@
+typealias point = {x: float, y: float}
+export function new(x : float, y: float): point
+    local v : point = {x = x, y = y}
+    return v
+end
+
+export function clone(p : point): point
+    return new(p.x,p.y)
+end
+
+export function conj(p : point): point
+    return new(p.x,-p.y)
+end
+
+export function add(a : point, b : point): point
+    return new(a.x + b.x, a.y + b.y)
+end
+
+export function mul(a : point, b : point): point
+    return new(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x)
+end
+
+export function norm2(x : point): float
+    local n = mul(x, conj(x))
+    return n.x
+end
